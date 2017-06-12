@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Rutapp</string>
+    <string name="title_activity_maps">Map</string>
+    <string name="settings">Ajustes</string>
+    <string name="permission_denied_explanation">Permisos denegados. Estos permisos son necesarios para la funcionalidad básica de la aplicación.</string>
+    <string name="permission_location_rationale">Los permisos de localización son necesarios para la aplicación</string>
+    <string name="permission_telefono_rationale">Los permisos de telefono son necesarios para la aplicación</string>
+    <string name="ruta_empty">No hay rutas disponibles. \nCrea y guarda una para visualizarla.</string>
+    <string name="route_description">Descripción de la ruta</string>
+    <string name="route_name">Nombre</string>
+    <string name="save_route">Guardar ruta</string>
+</resources>
