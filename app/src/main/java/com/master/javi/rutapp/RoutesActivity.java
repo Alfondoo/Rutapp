@@ -20,6 +20,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.master.javi.rutapp.data.APIClient;
 import com.master.javi.rutapp.data.Route;
@@ -62,17 +63,20 @@ public class RoutesActivity extends AppCompatActivity {
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Log.d("FAB", "Clicked!");
+                Log.d(TAG, "Accediendo a MapsActivity!");
                 Intent i = new Intent(getApplicationContext(), MapsActivity.class);
                 startActivity(i);
             }
         });
+
         layoutInflater = getLayoutInflater();
         routesList = new ArrayList<Route>();
 
+        // Instanciamos el servicio de Retrofit
         api = APIClient.getClient();
         rs = api.create(RouteService.class);
 
+        // Creamos el adapter para mostrar nuestras rutas en el RecyclerView
         routesAdapter = new RoutesAdapter();
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         recyclerView.setAdapter(routesAdapter);
@@ -81,6 +85,7 @@ public class RoutesActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
+        // Comprobamos si tenemos permisos sobre los datos del teléfono. Necesarios para obtener el IMEI
         if (!checkPermissionsPhone()) {
             requestPermissionsPhone();
         } else {
@@ -89,35 +94,43 @@ public class RoutesActivity extends AppCompatActivity {
     }
 
     private void solicitarRutas() {
+        // Obtenemos el IMEI
         TelephonyManager tManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         String uuid = tManager.getDeviceId();
-        Log.d("UUID", uuid);
+        Log.d(TAG, "IMEI: " + uuid);
+        // Lanzamos la petición mediante retrofit
         rs.listaRutas(uuid).enqueue(new Callback<List<Route>>() {
             @Override
             public void onResponse(Call<List<Route>> call, Response<List<Route>> response) {
-                Log.v("RUTAS", response.body().toString());
-                routesList = response.body();
-                routesAdapter.notifyDataSetChanged();
-                if (routesList.size() > 0) {
-                    emptyTextView.setVisibility(View.GONE);
-                    recyclerView.setVisibility(View.VISIBLE);
+                if (response.body() != null) {
+                    // Cuando ha finalizado y hemos obtenido una lista de rutas, procedemos a poblar el adapter y a efectuar cambios en la interfaz.
+                    Log.d(TAG, "Rutas: " + response.body().toString());
+                    routesList = response.body();
+                    routesAdapter.notifyDataSetChanged();
+                    if (routesList.size() > 0) {
+                        emptyTextView.setVisibility(View.GONE);
+                        recyclerView.setVisibility(View.VISIBLE);
+                    }
                 }
             }
 
             @Override
             public void onFailure(Call<List<Route>> call, Throwable t) {
-                Log.e("ERROR", "Error recuperando las rutas");
+                Log.e(TAG, "Error recuperando las rutas");
+                Toast.makeText(getApplicationContext(), "No se han podido recuperar las rutas", Toast.LENGTH_LONG).show();
             }
         });
     }
 
     private void startMapActivityWithRoute(Route item) {
+        // Lanzaremos la actividad del mapa pasando la ID de la ruta que queremos que sea representada
         Intent i = new Intent(this, MapsActivity.class);
         i.putExtra(EXTRA_ID, item.getId());
         startActivity(i);
     }
 
     private void requestPermissionsPhone() {
+        // Solicitaremos los permisos de teléfono
         boolean shouldProvideRationale =
                 ActivityCompat.shouldShowRequestPermissionRationale(this,
                         Manifest.permission.READ_PHONE_STATE);
@@ -191,6 +204,8 @@ public class RoutesActivity extends AppCompatActivity {
 
     class RoutesAdapter extends RecyclerView.Adapter<RoutesAdapter.RoutesViewHolder> {
 
+        // Adaptador personalizado para mostrar la información de las rutas en el RecyclerView
+
         @Override
         public RoutesViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
             View v = layoutInflater.inflate(R.layout.route_item, parent, false);
@@ -199,6 +214,8 @@ public class RoutesActivity extends AppCompatActivity {
 
         @Override
         public void onBindViewHolder(RoutesViewHolder holder, int position) {
+            // Función que se ejecuta cuando el adapter empareja la vista con el el ViewHolder.
+            // Aquí por lo tanto será donde necesitamos actualizar la interfaz.
             Route currentItem = routesList.get(position);
             holder.name.setText(currentItem.getName());
             holder.description.setText(currentItem.getDescription());
@@ -211,6 +228,8 @@ public class RoutesActivity extends AppCompatActivity {
         }
 
         class RoutesViewHolder extends RecyclerView.ViewHolder implements View.OnClickListener {
+
+            // Vista personalizada para cada "elemento" de nuestro adapter.
 
             private TextView name;
             private TextView description;
@@ -229,6 +248,7 @@ public class RoutesActivity extends AppCompatActivity {
 
             @Override
             public void onClick(View view) {
+                // Cuando seleccionemos cualquier celda/fila se disparará este evento.
                 startMapActivityWithRoute(routesList.get(this.getAdapterPosition()));
             }
         }

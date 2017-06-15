@@ -2,8 +2,12 @@ package com.master.javi.rutapp.data;
 
 import com.google.gson.annotations.SerializedName;
 
+/**
+ * Modelo equivalente al del servidor. Representa un punto en el mapa.
+ */
 public class Point {
 
+    // Anotación necesaria para mapear la clave "long" del JSON de respuesta a este atributo.
     @SerializedName("long")
     private double longitude;
     private double height;

@@ -14,7 +14,9 @@ import android.widget.EditText;
 
 import com.master.javi.rutapp.data.Route;
 
-
+/**
+ * Dialog que se mostrará a la hora de guardar una ruta.
+ */
 public class RouteDialog extends DialogFragment {
 
     @Override
@@ -28,15 +30,17 @@ public class RouteDialog extends DialogFragment {
                 .setPositiveButton("Guardar", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
+                        // Crearemos la ruta desde la actividad para evitar crear otro servicio de retrofit aqui. Le pasaremos los datos que haya rellenado el usuario.
                         ((MapsActivity) getActivity()).createRoute(name.getText().toString(), description.getText().toString());
                     }
                 })
-                .setNegativeButton("Cancelar", new DialogInterface.OnClickListener() {
+                .setNegativeButton("Borrar", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialogInterface, int i) {
                     }
                 });
         final AlertDialog dialog = builder.create();
+        // Colocaremos unos Listener en los EditText para que el botón de guardar sólo esté activo si ambos campos han sido rellenados.
         dialog.setOnShowListener(new DialogInterface.OnShowListener() {
             @Override
             public void onShow(DialogInterface dialogInterface) {

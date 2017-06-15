@@ -64,24 +64,28 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private FloatingActionButton fab;
     private RouteService rs;
     private Retrofit api;
-    private Polyline polyline;
+    private Polyline polyline, polylineSaved;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
-        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
+        // Obtenemos la información procedente de la Activity anterior en el caso de que la hubiese.
         Intent i = getIntent();
         int id = i.getIntExtra(EXTRA_ID, NO_ID);
+        // Creamos de nuevo un servicio Retrofit para poder usar la obtención del detalle de una ruta y su creación.
         api = APIClient.getClient();
         rs = api.create(RouteService.class);
 
+        // Inicializamos el servicio para obtener nuestra posición.
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+
+        // Preparamos al FAB (Botón redonde esquina inferior derecha) para poder soportar la gestión de los estados.
         fab = (FloatingActionButton) findViewById(R.id.fab_map);
         fab.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(this, R.color.colorRec)));
 
@@ -89,13 +93,21 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             @Override
             public void onClick(View view) {
                 if (currentState == STATE_STOP) {
+                    // Si no estamos grabando empezaremos a grabar sobre una ruta vacía, si hay una dibujada la eliminaremos, siempre que sea una que estemos grabando y no una recuperada
                     pointsOfRoute = new ArrayList<>();
+                    if (polyline != null) {
+                        polyline.remove();
+                    }
                     getLastLocation();
                     currentState = STATE_RECORDING;
+                    // Actualizamos la interfaz
                     fab.setImageDrawable(ContextCompat.getDrawable(getApplicationContext(), R.drawable.ic_stop));
                     fab.setBackgroundTintList(ColorStateList.valueOf(ContextCompat.getColor(getApplicationContext(), R.color.colorPause)));
+                    Snackbar.make(findViewById(android.R.id.content),
+                            "Grabando ruta nueva",
+                            Snackbar.LENGTH_LONG).show();
                 } else if (currentState == STATE_RECORDING) {
-                    // Show dialog save
+                    // Hemos parado de grabar, procedemos a mostrar el Dialog y a actualizar
                     createDialog();
                     currentState = STATE_STOP;
                     fab.setImageDrawable(ContextCompat.getDrawable(getApplicationContext(), R.drawable.ic_rec));
@@ -105,32 +117,46 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         });
 
         if (id != NO_ID) {
-            rs.rutaDetalle(id, "IMEI").enqueue(new Callback<Route>() {
+            // Esta porción de código se ejecutará cuando el intent sea procedente de startMapActivityWithRoute.
+            TelephonyManager tManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+            String uuid = tManager.getDeviceId();
+            rs.rutaDetalle(id, uuid).enqueue(new Callback<Route>() {
                 @Override
                 public void onResponse(Call<Route> call, Response<Route> response) {
                     route = response.body();
+                    // Crearemos una polyline de color verde, la cual rellenaremos con todos los puntos que tengamos disponibles.
+                    polylineSaved = mMap.addPolyline(new PolylineOptions()
+                            .width(5)
+                            .color(Color.GREEN));
+                    ArrayList<LatLng> polylinePoints = new ArrayList<>();
+                    for (Point p : route.getPuntos()) {
+                        polylinePoints.add(new LatLng(p.getLatitude(), p.getLongitude()));
+                    }
+                    polylineSaved.setPoints(polylinePoints);
+                    Log.d(TAG, "Polyline: " + polylinePoints.size());
                 }
 
                 @Override
                 public void onFailure(Call<Route> call, Throwable t) {
-                    Log.e("ERROR", "Recuperando detalle de ruta");
+                    Log.e(TAG, "Recuperando detalle de ruta");
                 }
             });
         }
     }
 
     private void createDialog() {
+        // Instanciamos el dialog y lo mostramos.
         DialogFragment dialog = new RouteDialog();
         dialog.show(getFragmentManager(), "RouteDialog");
     }
 
     public void createRoute(String name, String description) {
-        Log.i("RouteDialog Result", name + "/" + description);
-        Log.v("createRoute", pointsOfRoute.toString());
+        // Similar a otras peticiones, en este caso crearemos una ruta. Esto será ejecutado desde RouteDialog
+        Log.d(TAG, "Creando ruta... " + pointsOfRoute.toString());
         if (checkPermissionsPhone()) {
             TelephonyManager tManager = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
             String uuid = tManager.getDeviceId();
-            Log.d("UUID", uuid);
+            Log.d(TAG, "IMEI: " + uuid);
             Route r = new Route(name, description, pointsOfRoute, uuid);
             rs.crearRuta(r).enqueue(new Callback<Route>() {
                 @Override
@@ -154,8 +180,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    private void addPointToPolyline(Point p){
-        if(polyline == null){
+    private void addPointToPolyline(Point p) {
+        // Añadiremos el punto p al polyline actual.
+        if (polyline == null) {
             polyline = mMap.addPolyline(new PolylineOptions()
                     .width(5)
                     .color(Color.RED));
@@ -163,12 +190,14 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         List<LatLng> latLngList = polyline.getPoints();
         latLngList.add(new LatLng(p.getLatitude(), p.getLongitude()));
         polyline.setPoints(latLngList);
+        Log.d(TAG, "Polyline en curso" + polyline.getPoints().size());
     }
 
     @Override
     public void onStart() {
         super.onStart();
 
+        // Comprobamos si tenemos los permisos necesarios
         if (!checkPermissionsLocation()) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 requestPermissionsLocation();
@@ -191,6 +220,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 requestPermissionsLocation();
             }
         } else {
+            // Mostramos el punto azul.
             mMap.setMyLocationEnabled(true);
         }
     }
@@ -279,9 +309,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .addOnCompleteListener(this, new OnCompleteListener<Location>() {
                     @Override
                     public void onComplete(@NonNull Task<Location> task) {
+                        // Esto se ejecutará cada vez que recibamos con éxito una nueva posición
                         if (task.isSuccessful() && task.getResult() != null) {
                             mLastLocation = task.getResult();
                             if (pointsOfRoute != null) {
+                                // Añadiremos esta posición a nuestros puntos de ruta y al polyline para dibujarla.
                                 Point p = new Point(mLastLocation.getLongitude(), mLastLocation.getLatitude(), mLastLocation.getAltitude());
                                 pointsOfRoute.add(p);
                                 addPointToPolyline(p);
